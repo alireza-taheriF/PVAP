@@ -5,3 +5,9 @@ __pycache__/
 demo_out/
 *.wav
 gateway/pvap-gateway
+
+# local config, personas, certificates
+pvap.toml
+personas/*.toml
+!personas/example.toml
+*.pem

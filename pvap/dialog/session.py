@@ -36,6 +36,7 @@ from typing import AsyncIterator, Awaitable, Callable
 import numpy as np
 
 from pvap.audio.pcm import TELEPHONY_RATE, frame_samples, split_frames
+from pvap.audio.pcm import dbfs as _dbfs
 from pvap.backends.base import ASRBackend, LLMBackend, Message, TTSBackend
 from pvap.vad.energy_vad import EnergyVAD, VADConfig, VADEvent
 
@@ -175,6 +176,8 @@ class CallSession:
         max_history: int = 12,
         clock: Callable[[], float] = time.monotonic,
         seed: int | None = None,
+        echo_guard: bool = False,
+        echo_margin_db: float = 8.0,
     ) -> None:
         if tts.sample_rate != sample_rate:
             raise ValueError(f"TTS rate {tts.sample_rate} != call rate {sample_rate}")
@@ -205,6 +208,14 @@ class CallSession:
         self.recording: list[np.ndarray] = []  # outbound audio per tick (silence when idle)
         self._can_react = bool(getattr(tts, "backchannel", None)) and bool(getattr(tts, "backchannel_keys", ()))
         self._can_breathe = bool(getattr(tts, "breath", None))
+        # Echo guard (for loudspeaker endpoints such as a phone browser): the
+        # agent's own voice leaking back must not count as a barge-in. We
+        # learn the echo return level (mic dB − played dB) while the caller is
+        # quiet, and accept speech during playback only if it is clearly louder.
+        self.echo_guard = echo_guard
+        self._echo_margin = echo_margin_db
+        self._out_levels: deque[float] = deque(maxlen=max(1, 400 // frame_ms))
+        self._erl_db = -30.0  # learned: typical mic level relative to playback while caller is silent
 
     # ------------------------------------------------------------------ utils
     def _log(self, kind: str, detail: str = "") -> None:
@@ -352,7 +363,9 @@ class CallSession:
                         m.first_speech_t = self.clock()
                 await outbound(frame)
                 self.recording.append(frame)
+                self._out_levels.append(_dbfs(frame))
             else:
+                self._out_levels.append(-120.0)
                 if self._pending_barge_t is not None:
                     self.report.barge_in_ms.append(round((self.clock() - self._pending_barge_t) * 1000, 1))
                     self._pending_barge_t = None
@@ -387,11 +400,28 @@ class CallSession:
         speech_onset_t = 0.0
         spec: tuple[int, asyncio.Task] | None = None  # (frames covered, ASR task)
         last_utterance: np.ndarray | None = None
+        echo_utterance = False
         stale: list[asyncio.Task] = []
         try:
             async for frame in inbound:
                 self._preroll.append(frame)
                 event = self.vad.process(frame)
+                playing_ref = max(self._out_levels) if self._out_levels else -120.0
+                if self.echo_guard and playing_ref > -60.0 and not collecting:
+                    mic = _dbfs(frame)
+                    if mic > -70.0:  # learn the echo path level while the caller is quiet
+                        self._erl_db = 0.95 * self._erl_db + 0.05 * (mic - playing_ref)
+                if event is VADEvent.SPEECH_START and self.echo_guard and playing_ref > -60.0:
+                    recent = np.concatenate(list(self._preroll)[-max(1, self.vad.config.start_ms // self.frame_ms):])
+                    if _dbfs(recent) < playing_ref + self._erl_db + self._echo_margin:
+                        echo_utterance = True
+                        self._log("echo_ignored", f"{_dbfs(recent):.0f} dB vs echo {playing_ref + self._erl_db:.0f} dB")
+                        continue
+                if event is VADEvent.SPEECH_END and echo_utterance:
+                    echo_utterance = False
+                    continue
+                if echo_utterance:
+                    continue
                 if event is VADEvent.SPEECH_START:
                     speech_onset_t = self.clock() - self.vad.config.start_ms / 1000.0
                     collecting = True

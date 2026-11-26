@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>تماس</title>
+<style>
+  :root { --bg:#0b1220; --fg:#f3f5f9; --muted:#9aa3b5; --green:#22c55e; --red:#ef4444; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family: system-ui, -apple-system, "Vazirmatn", "Segoe UI", Tahoma, sans-serif; }
+  .screen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:space-between; padding:12vh 24px calc(8vh + env(safe-area-inset-bottom)); }
+  .hidden { display:none !important; }
+  .who { text-align:center; }
+  .avatar { width:120px; height:120px; border-radius:50%; margin:0 auto 22px; display:flex;
+    align-items:center; justify-content:center; font-size:52px; font-weight:600;
+    background:linear-gradient(135deg,#334155,#1e293b); box-shadow:0 0 0 0 rgba(34,197,94,.5); }
+  .ringing .avatar { animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)} 70%{box-shadow:0 0 0 28px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+  .name { font-size:30px; font-weight:600; }
+  .status { margin-top:8px; color:var(--muted); font-size:16px; min-height:22px; }
+  .buttons { display:flex; gap:64px; }
+  .btn { width:74px; height:74px; border-radius:50%; border:none; display:flex; align-items:center;
+    justify-content:center; cursor:pointer; }
+  .btn svg { width:34px; height:34px; fill:#fff; }
+  .accept { background:var(--green); }
+  .decline, .hang { background:var(--red); }
+  .hang svg { transform:rotate(135deg); }
+  .mute { background:#334155; width:62px; height:62px; }
+  .mute.on { background:#f3f5f9; } .mute.on svg { fill:#0b1220; }
+  .label { text-align:center; color:var(--muted); font-size:13px; margin-top:8px; }
+  .captions { width:100%; max-width:520px; max-height:30vh; overflow:auto; font-size:14px; color:var(--muted); }
+  .captions p { margin:6px 0; } .captions b { color:var(--fg); font-weight:500; }
+  .err { color:#fca5a5; text-align:center; padding:0 10px; }
+</style>
+</head>
+<body>
+<div id="ring" class="screen ringing">
+  <div class="who"><div class="avatar" id="av1">؟</div><div class="name" id="name1">…</div><div class="status">تماس صوتی</div></div>
+  <div class="buttons">
+    <div><button class="btn decline" id="decline" aria-label="رد تماس"><svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 010-1.36C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.72c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" transform="rotate(135 12 12)"/></svg></button><div class="label">رد</div></div>
+    <div><button class="btn accept" id="accept" aria-label="پاسخ"><svg viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></button><div class="label">پاسخ</div></div>
+  </div>
+</div>
+
+<div id="incall" class="screen hidden">
+  <div class="who"><div class="avatar" id="av2">؟</div><div class="name" id="name2">…</div><div class="status" id="timer">در حال اتصال…</div></div>
+  <div class="captions hidden" id="captions"></div>
+  <div class="err hidden" id="err"></div>
+  <div class="buttons">
+    <div><button class="btn mute" id="mute" aria-label="بی‌صدا"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg></button><div class="label">بی‌صدا</div></div>
+    <div><button class="btn hang" id="hang" aria-label="قطع"><svg viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></button><div class="label">قطع</div></div>
+  </div>
+</div>
+
+<div id="ended" class="screen hidden">
+  <div class="who"><div class="avatar" id="av3">؟</div><div class="name" id="name3">…</div><div class="status" id="endmsg">تماس پایان یافت</div></div>
+  <div></div>
+</div>
+
+<script>
+"use strict";
+const params = new URLSearchParams(location.search);
+const WHO = params.get("who") || "";
+const DEBUG = params.get("debug") === "1";
+const RATE = 16000, FRAME = 320;            // 20 ms @ 16 kHz
+const $ = (id) => document.getElementById(id);
+let ws, ctx, micStream, captureNode, playNode, muted = false, t0 = 0, timerId = 0, ended = false;
+
+fetch(`/api/info?who=${encodeURIComponent(WHO)}`).then(r => r.json()).then(info => {
+  const name = info.agent || "تماس";
+  for (const i of [1, 2, 3]) { $("name" + i).textContent = name; $("av" + i).textContent = name.trim().charAt(0) || "؟"; }
+  document.title = name;
+}).catch(() => {});
+
+// --- AudioWorklets: capture (→16 kHz Int16 frames) and playback (16 kHz Float queue) ---
+const WORKLETS = `
+class Capture extends AudioWorkletProcessor {
+  constructor() { super(); this.ratio = sampleRate / ${RATE}; this.pos = 0; this.prev = 0; this.lp = 0;
+    this.buf = new Int16Array(${FRAME}); this.n = 0; this.lp2 = 0;
+    const fc = 7000 / sampleRate; this.a = Math.min(1, 2 * Math.PI * fc / (1 + 2 * Math.PI * fc)); }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0]; if (!ch) return true;
+    for (let i = 0; i < ch.length; i++) {
+      // one-pole anti-alias filter (applied twice) then linear-interpolation decimation
+      this.lp += this.a * (ch[i] - this.lp); this.lp2 += this.a * (this.lp - this.lp2); const x = this.lp2;
+      while (this.pos <= 1) {
+        const y = this.prev + (x - this.prev) * this.pos;
+        this.buf[this.n++] = Math.max(-1, Math.min(1, y)) * 32767;
+        if (this.n === ${FRAME}) { this.port.postMessage(this.buf.slice(0)); this.n = 0; }
+        this.pos += this.ratio;
+      }
+      this.pos -= 1; this.prev = x;
+    }
+    return true;
+  }
+}
+class Play extends AudioWorkletProcessor {
+  constructor() { super(); this.q = []; this.cur = null; this.ci = 0; this.step = ${RATE} / sampleRate; this.frac = 0; this.last = 0; this.prevS = 0;
+    this.port.onmessage = (e) => { if (e.data === "clear") { this.q = []; this.cur = null; } else this.q.push(e.data); }; }
+  next() { if (!this.cur || this.ci >= this.cur.length) { this.cur = this.q.shift() || null; this.ci = 0; }
+    return this.cur ? this.cur[this.ci++] / 32768 : 0; }
+  process(_, outputs) {
+    const out = outputs[0][0];
+    for (let i = 0; i < out.length; i++) {
+      this.frac += this.step;
+      while (this.frac >= 1) { this.frac -= 1; this.prevS = this.last; this.last = this.next(); }
+      out[i] = this.prevS + (this.last - this.prevS) * this.frac;
+    }
+    return true;
+  }
+}
+registerProcessor("capture", Capture); registerProcessor("play", Play);`;
+
+async function routeThroughWebRTC(stream) {
+  // Chrome's echo canceller only "hears" audio that arrives over WebRTC. Looping
+  // the agent's voice through a local peer connection lets the browser cancel
+  // it from the microphone (iOS Safari cancels all app audio natively).
+  const a = new RTCPeerConnection(), b = new RTCPeerConnection();
+  a.onicecandidate = (e) => e.candidate && b.addIceCandidate(e.candidate);
+  b.onicecandidate = (e) => e.candidate && a.addIceCandidate(e.candidate);
+  const audio = new Audio(); audio.autoplay = true; audio.playsInline = true;
+  b.ontrack = (e) => { audio.srcObject = e.streams[0]; audio.play().catch(() => {}); };
+  stream.getTracks().forEach((t) => a.addTrack(t, stream));
+  const offer = await a.createOffer(); await a.setLocalDescription(offer); await b.setRemoteDescription(offer);
+  const answer = await b.createAnswer(); await b.setLocalDescription(answer); await a.setRemoteDescription(answer);
+  return audio;
+}
+
+async function start() {
+  $("ring").classList.add("hidden"); $("incall").classList.remove("hidden");
+  if (DEBUG) $("captions").classList.remove("hidden");
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  } catch (e) { return fail("دسترسی به میکروفون داده نشد."); }
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLETS], { type: "application/javascript" })));
+  const src = ctx.createMediaStreamSource(micStream);
+  captureNode = new AudioWorkletNode(ctx, "capture");
+  src.connect(captureNode);
+  playNode = new AudioWorkletNode(ctx, "play", { outputChannelCount: [1] });
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!isIOS && window.RTCPeerConnection) {
+    const dest = ctx.createMediaStreamDestination(); playNode.connect(dest);
+    try { await routeThroughWebRTC(dest.stream); } catch (e) { playNode.connect(ctx.destination); }
+  } else {
+    playNode.connect(ctx.destination);
+  }
+  const silent = ctx.createGain(); silent.gain.value = 0; captureNode.connect(silent).connect(ctx.destination);
+  if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(() => {});
+
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?who=${encodeURIComponent(WHO)}${DEBUG ? "&debug=1" : ""}`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { t0 = Date.now(); timerId = setInterval(tick, 1000); tick(); };
+  ws.onmessage = (e) => {
+    if (typeof e.data === "string") {
+      const m = JSON.parse(e.data);
+      if (m.type === "clear") playNode.port.postMessage("clear");
+      else if (m.type === "turn") { let p = document.getElementById("turn-" + m.id);
+        if (!p) { p = document.createElement("p"); p.id = "turn-" + m.id; $("captions").appendChild(p); }
+        p.innerHTML = (m.user ? `<b>شما:</b> ${esc(m.user)}<br>` : "") + (m.agent ? `<b>${esc($("name2").textContent)}:</b> ${esc(m.agent)}` : "");
+        $("captions").scrollTop = 1e9; }
+      return;
+    }
+    playNode.port.postMessage(new Int16Array(e.data));
+  };
+  ws.onclose = () => end();
+  captureNode.port.onmessage = (e) => { if (!muted && ws.readyState === 1) ws.send(e.data.buffer); };
+}
+function esc(s) { return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function tick() { const s = Math.floor((Date.now() - t0) / 1000);
+  $("timer").textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; }
+function fail(msg) { $("err").textContent = msg; $("err").classList.remove("hidden"); }
+function end() {
+  if (ended) return; ended = true; clearInterval(timerId);
+  try { ws && ws.readyState === 1 && ws.send('{"type":"hangup"}'); ws && ws.close(); } catch (e) {}
+  micStream && micStream.getTracks().forEach((t) => t.stop()); ctx && ctx.close();
+  $("incall").classList.add("hidden"); $("ring").classList.add("hidden"); $("ended").classList.remove("hidden");
+  if (t0) $("endmsg").textContent = "تماس پایان یافت · " + $("timer").textContent;
+}
+$("accept").onclick = start;
+$("decline").onclick = end;
+$("hang").onclick = end;
+$("mute").onclick = () => { muted = !muted; $("mute").classList.toggle("on", muted); };
+</script>
+</body>
+</html>

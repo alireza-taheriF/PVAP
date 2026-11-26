@@ -53,12 +53,17 @@ class OpenAICompatLLM:
         self._timeout = timeout_s
 
     def stream(self, messages: list[Message]) -> Iterator[str]:
+        """Stream a reply, prefixed with this backend's spoken-style system prompt."""
+        return self.stream_raw([{"role": "system", "content": self._system}, *messages])
+
+    def stream_raw(self, messages: list[Message]) -> Iterator[str]:
+        """Stream a reply to ``messages`` exactly as given (caller supplies any system prompt)."""
         body = {
             "model": self._model,
             "stream": True,
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
-            "messages": [{"role": "system", "content": self._system}, *messages],
+            "messages": messages,
         }
         headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
         if self._key:
@@ -108,6 +113,9 @@ class RuleBasedLLM:
             if any(k in text for k in keys):
                 return answer
         return self._FALLBACK
+
+    def stream_raw(self, messages: list[Message]) -> Iterator[str]:
+        return self.stream(messages)
 
     def stream(self, messages: list[Message]) -> Iterator[str]:
         last = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")

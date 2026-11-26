@@ -1,0 +1,41 @@
+# PVAP configuration. Copy to pvap.toml (git-ignored) and adjust.
+
+[llm]
+provider = "local"            # "local" (Ollama on this machine) or "cloud"
+
+[llm.local]                   # Ollama: `ollama pull aya-expanse:8b` (strong Persian, fits 16 GB)
+base_url = "http://localhost:11434/v1"
+model = "aya-expanse:8b"      # alternatives: gemma3:12b (better, slower), qwen2.5:7b
+temperature = 0.7
+max_tokens = 120
+
+[llm.cloud]                   # any OpenAI-compatible API
+base_url = "https://api.openai.com/v1"   # Anthropic: https://api.anthropic.com/v1/
+model = "gpt-4o-mini"                    # Anthropic: claude-haiku-… / claude-sonnet-…
+api_key_env = "OPENAI_API_KEY"           # name of the env var holding the key
+
+[persona]
+file = "personas/example.toml"
+
+[asr]
+whisper_dir = "~/models/sherpa-onnx-whisper-turbo"
+
+[voice]
+voice_dir = ""                # empty = Ava's default voice; or your cloned voice's folder
+g2p_dir = ""
+speed = 1.2                   # conversational pace (1.0 = the voice's reading pace)
+pitch_semitones = 2.0         # younger, livelier sound for deep voices; 0 for a cloned voice
+intensity = 1.0               # emotion strength
+
+[call]
+endpoint_ms = 500
+
+[learning]
+memory = true                 # remember facts about each caller across calls
+pronunciation = true          # re-hear own speech after each call and fix mispronunciations
+
+[web]
+host = "0.0.0.0"
+port = 8443
+cert = ""                     # tools/make_cert.sh → cert.pem / key.pem for HTTPS on your LAN
+key = ""

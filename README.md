@@ -21,6 +21,36 @@ you point PVAP at a served LLM.
 └──────────────────────┘                            └─────────────────────────────────────────┘
 ```
 
+## Call someone from a browser link
+
+```bash
+pip install -e ".[dev,ava,asr]" && python -m ava_voice.tts.models fetch
+ollama pull aya-expanse:8b                         # local LLM (or provider = "cloud")
+cp pvap.example.toml pvap.toml && cp personas/example.toml personas/wife.toml   # edit both
+python -m pvap.web                                 # → http://localhost:8443/?who=wife&debug=1
+cloudflared tunnel --url http://localhost:8443     # https link for a phone anywhere
+```
+
+The page looks like an incoming call. It streams **16 kHz wideband** audio
+over a WebSocket and keeps the agent's voice out of the microphone with the
+browser's echo canceller, using a WebRTC loopback on Chrome/Android, plus the
+session's echo guard. The agent speaks as the persona in
+`personas/<id>.toml`, on the LLM chosen in `pvap.toml` (Ollama locally, or any
+OpenAI-compatible cloud API). It tells the caller it is an AI at the moment the
+persona's `reveal` setting chooses.
+
+**Every call teaches the next one.** Afterwards, in the background, three
+things happen:
+
+- The transcript is saved.
+- The LLM extracts durable facts about the caller into `~/.pvap/memory/<id>.json`,
+  and the next call's prompt includes them.
+- Ava re-hears its own sentences with Whisper, tries alternative readings for
+  misheard words, and keeps only clear, consistent winners in its learned
+  lexicon. Human-curated entries are never overridden.
+
+Step-by-step Persian guide: [`docs/QUICKSTART_FA.md`](docs/QUICKSTART_FA.md).
+
 ## Status: what is real
 
 | Stage | Implementation | Status |
@@ -34,8 +64,10 @@ you point PVAP at a served LLM.
 | **ASR** | `WhisperOnnxASR`: Whisper-turbo on onnxruntime + NumPy log-mel (shared with Ava Voice) | ✅ real, Persian, used in the demos |
 |  | `FasterWhisperASR` (CTranslate2) | ⚠️ alternative, not run here |
 |  | `ScriptedASR` | 🧪 simulation only: returns pre-written transcripts, does no recognition |
-| **LLM** | `OpenAICompatLLM` → vLLM / Ollama / llama.cpp (SSE streaming) | ⚠️ tested against a fake SSE server, not a real model |
+| **LLM** | `OpenAICompatLLM` → Ollama / vLLM / llama.cpp / OpenAI / Anthropic (SSE streaming), local ↔ cloud switch in `pvap.toml` | ⚠️ tested against a fake SSE server; no LLM server could run in the build sandbox |
+|  | `PersonaLLM`: persona prompt, per-caller memory, AI-disclosure policy | ✅ tested |
 |  | `RuleBasedLLM` | 🧪 keyword demo receptionist, not a language model |
+| **Web call** | `pvap.web`: stdlib HTTP + WebSocket server, mobile call page, 16 kHz, echo guard | ✅ tested end to end with a WebSocket client, real Whisper and Ava voice |
 | **TTS** | `AvaTTS` → [Ava Voice](https://github.com/alireza-taheriF/Ava-Voice) expressive neural voice: verbalizer → Homo-GE2PE (NumPy) → VITS (onnxruntime) → emotion-driven PSOLA, gain, pauses and breaths | ✅ real, natural, emotional Persian. Whisper recovers it with ≈5 % CER, the same as without emotion. Falls back to Ava's robotic formant vocoder only if the models are missing. |
 
 ### Turn-taking like a person
@@ -141,6 +173,8 @@ pvap/
   backends/   base.py (ASR/LLM/TTS protocols), asr.py, whisper_onnx.py, llm.py, tts.py
   dialog/     session.py (full-duplex call loop, barge-in, metrics)
   bridge/     protocol.py, server.py (engine side of the gateway link)
+  web/        server.py, ws.py, static/call.html (browser calls)
+  persona.py  personas, memory, AI-disclosure policy;  config.py  pvap.toml
   sim/        caller.py (simulated caller), demo.py, uac.py (SIP test caller)
 gateway/      Go: cmd/pvap-gateway, internal/{sip,rtp,g711,bridge,gw}
 docs/         ARCHITECTURE.md, adr/

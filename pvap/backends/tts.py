@@ -41,6 +41,7 @@ class AvaTTS:
         expressive: bool = True,
         intensity: float = 1.0,
         seed: int | None = None,
+        pitch_semitones: float = 0.0,
     ) -> None:
         if engine not in ("auto", "neural", "formant"):
             raise ValueError(f"unknown engine {engine!r}")
@@ -63,8 +64,9 @@ class AvaTTS:
             if expressive:
                 from ava_voice.tts.expressive import BACKCHANNELS, ExpressiveVoice
 
-                self._expr = ExpressiveVoice(self._neural, intensity=intensity, seed=seed)
-                self.name += f", expressive ×{intensity:g}"
+                self._expr = ExpressiveVoice(self._neural, intensity=intensity, seed=seed,
+                                             speed=speed, pitch_semitones=pitch_semitones)
+                self.name += f", expressive ×{intensity:g}, speed {speed:g}, pitch {pitch_semitones:+g} st"
                 self.backchannel_keys = tuple(BACKCHANNELS)
                 self._bc_cache: dict[str, np.ndarray] = {}
                 for key in self.backchannel_keys:  # warm: reactions must be instant
