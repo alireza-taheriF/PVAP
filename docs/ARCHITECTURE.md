@@ -10,9 +10,9 @@ sits behind an interface the full design can grow into.
 | --- | --- | --- |
 | Kamailio SBC + FreeSWITCH media | `gateway/` Go SIP UAS + RTP | Put Kamailio in front for auth, NAT and load-balancing. Or replace the gateway with FreeSWITCH + `mod_audio_stream` speaking the same framed protocol. |
 | gRPC bidirectional streaming | framed TCP (`START/AUDIO/CLEAR/HANGUP`) | Same four messages map 1:1 onto a gRPC stream. Only `bridge/` changes. |
-| Whisper-FA (fine-tuned) | `FasterWhisperASR` interface | Convert the fine-tune to CTranslate2 and pass its path as `model`. |
+| Whisper-FA (fine-tuned) | `WhisperOnnxASR` (Whisper-turbo, onnxruntime) | Export the fine-tune with sherpa-onnx's `export-onnx.py` and pass the directory. |
 | vLLM / TensorRT-LLM | `OpenAICompatLLM` (SSE) | No change; vLLM already serves this API. |
-| VITS2 Persian TTS | `AvaTTS` → Ava Voice formant baseline | Put VITS2 behind Ava's `synthesize_profile`. PVAP is unchanged. |
+| VITS2 Persian TTS | `AvaTTS` → Ava Voice: Homo-GE2PE (NumPy) + Persian VITS (onnxruntime) | Fine-tune VITS2 on in-house voices and condition it on Ava's prosody plan. PVAP is unchanged. |
 | Kafka, Patroni, Redis, MinIO | per-call JSON reports | Add when there is multi-tenant traffic to justify them. |
 | Cilium + Linkerd | — | Out of scope until there are several services to mesh. |
 
@@ -37,7 +37,7 @@ sits behind an interface the full design can grow into.
 | Segment | Design target | Measured here |
 | --- | --- | --- |
 | Endpointing (caller stops → turn ends) | 300–600 ms | 600 ms (configurable `VADConfig.end_ms`) |
-| ASR | ≤ 150 ms | not measured (scripted) |
+| ASR | ≤ 150 ms | 3.9–5.6 s (Whisper-turbo, 2 CPU cores) ← bottleneck |
 | LLM first token | ≤ 200 ms | not measured (rule-based) |
-| TTS first chunk + pump | ≤ 150 ms | 45–200 ms (Ava formant, CPU) |
-| Barge-in reaction | ≤ 200 ms | ~100 ms |
+| TTS first chunk + pump | ≤ 150 ms | 100–400 ms (Ava neural voice, RTF ≈ 0.1) |
+| Barge-in reaction | ≤ 200 ms | 100–120 ms |

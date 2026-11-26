@@ -80,9 +80,13 @@ async def simulated_caller(
         for frame in split_frames(step.audio, n):
             yield await tick((frame.astype(np.int32) + noise()).clip(-32768, 32767).astype(np.int16))
 
-    # stay on the line until the agent is done, then a short tail
-    waited = 0.0
-    while session.agent_active and waited < max_wait_s:
+    # stay on the line until the agent has answered the last utterance, then a short tail
+    waited, quiet, seen_agent = 0.0, 0, False
+    while (not seen_agent or quiet * session.frame_ms < 300) and waited < max_wait_s:
+        if session.agent_active:
+            seen_agent, quiet = True, 0
+        else:
+            quiet += 1
         yield await tick(noise())
         waited += period
     for _ in range(tail_ms // session.frame_ms):

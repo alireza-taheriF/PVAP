@@ -12,9 +12,12 @@ authors = [{ name = "Alireza Taheri" }]
 dependencies = ["numpy>=1.26", "scipy>=1.11"]
 
 [project.optional-dependencies]
-# Persian TTS via Ava Voice (formant baseline today).
-ava = ["ava-voice @ git+https://github.com/alireza-taheriF/Ava-Voice"]
-# Real speech recognition.
+# Persian TTS via Ava Voice (neural voice: Homo-GE2PE + VITS on onnxruntime).
+# Pinned to the branch with the neural voice until it is merged into main.
+ava = ["ava-voice[neural] @ git+https://github.com/alireza-taheriF/Ava-Voice@feat/first-audio-and-number-verbalizer"]
+# Speech recognition: Whisper on onnxruntime (recommended) …
+asr = ["onnxruntime>=1.17"]
+# … or via CTranslate2.
 whisper = ["faster-whisper>=1.0"]
 dev = ["pytest>=8"]
 

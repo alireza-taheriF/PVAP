@@ -199,13 +199,21 @@ async def place_call(
     return result
 
 
-def _voice_for(text: str) -> np.ndarray:
+_CALLER_TTS = None
+
+
+def _voice_for(text: str, voice_dir: str | None = None) -> np.ndarray:
+    global _CALLER_TTS
     if os.path.exists(text):
         pcm, sr = read_wav(text)
         return resample(pcm, sr, 8000)
     from pvap.backends.tts import AvaTTS
 
-    return resample(AvaTTS().synthesize(text), 23, 20)
+    if _CALLER_TTS is None:
+        _CALLER_TTS = AvaTTS(voice_dir=voice_dir)
+    pcm = _CALLER_TTS.synthesize(text)
+    # with no separate caller voice, shift pitch/tempo so caller ≠ agent
+    return pcm if voice_dir else resample(pcm, 23, 20)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -214,9 +222,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--gateway", default="127.0.0.1:5060")
     ap.add_argument("--barge-last", type=int, metavar="MS", help="last utterance interrupts after MS of agent audio")
     ap.add_argument("--out", default="uac_call.wav")
+    ap.add_argument("--voice-dir", help="Ava voice for the caller (use a different voice than the agent)")
     args = ap.parse_args(argv)
     host, port = args.gateway.rsplit(":", 1)
-    steps = [UACStep(_voice_for(u)) for u in args.utterances]
+    steps = [UACStep(_voice_for(u, args.voice_dir)) for u in args.utterances]
     if args.barge_last:
         steps[-1] = UACStep(steps[-1].audio, barge_in_after_ms=args.barge_last)
     res = asyncio.run(place_call((host, int(port)), steps))

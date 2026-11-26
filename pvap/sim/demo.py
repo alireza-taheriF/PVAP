@@ -7,10 +7,12 @@ Runs a scripted phone call through the full PVAP loop in real time and writes:
 
 Both sides speak Persian synthesized by Ava Voice (formant baseline); the
 caller's voice is pitch/tempo-shifted so the two are distinguishable. The
-caller's transcripts come from :class:`~pvap.backends.asr.ScriptedASR`
-unless ``--asr whisper`` is given — say so when you show this demo.
+caller's speech is recognized by Whisper when ``--whisper-dir`` is given,
+otherwise transcripts come from :class:`~pvap.backends.asr.ScriptedASR` —
+say which when you show this demo.
 
-    python -m pvap.sim.demo --out demo_out
+    python -m pvap.sim.demo --out demo_out --whisper-dir models/sherpa-onnx-whisper-turbo \
+        --caller-voice-dir ~/.cache/ava-voice/vits-piper-fa_IR-gyro-medium
     python -m pvap.sim.demo --llm openai --base-url http://localhost:8000/v1 --model Qwen/Qwen2.5-7B-Instruct
 """
 
@@ -39,15 +41,21 @@ SCRIPT: list[tuple[str, int | None]] = [
 ]
 
 
-def caller_voice(tts: AvaTTS, text: str) -> np.ndarray:
-    """Agent TTS, shifted ~+15 % in pitch and tempo, so the caller sounds different."""
+def caller_voice(tts: AvaTTS, text: str, shift: bool) -> np.ndarray:
+    """Caller speech; pitch/tempo-shifted ~+15 % when sharing the agent's voice."""
     pcm = tts.synthesize(text)
-    return resample(pcm, 23, 20)
+    return resample(pcm, 23, 20) if shift else pcm
 
 
 async def _run(args: argparse.Namespace) -> dict:
-    tts = AvaTTS(TELEPHONY_RATE)
-    if args.asr == "whisper":
+    tts = AvaTTS(TELEPHONY_RATE, voice_dir=args.voice_dir, g2p_dir=args.g2p_dir)
+    caller_tts = AvaTTS(TELEPHONY_RATE, voice_dir=args.caller_voice_dir, g2p_dir=args.g2p_dir) \
+        if args.caller_voice_dir else tts
+    if args.whisper_dir:
+        from pvap.backends.whisper_onnx import WhisperOnnxASR
+
+        asr = WhisperOnnxASR(args.whisper_dir)
+    elif args.asr == "faster-whisper":
         asr = FasterWhisperASR(model=args.whisper_model)
     else:
         asr = ScriptedASR([line for line, _ in SCRIPT])
@@ -58,7 +66,7 @@ async def _run(args: argparse.Namespace) -> dict:
 
     session = CallSession(asr, llm, tts, greeting=RuleBasedLLM.GREETING)
     steps = [
-        CallerStep(caller_voice(tts, line), pause_ms=500, barge_in_after_ms=barge)
+        CallerStep(caller_voice(caller_tts, line, shift=caller_tts is tts), pause_ms=500, barge_in_after_ms=barge)
         for line, barge in SCRIPT
     ]
     inbound_log: list[np.ndarray] = []
@@ -97,7 +105,11 @@ async def _run(args: argparse.Namespace) -> dict:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="demo_out")
-    ap.add_argument("--asr", choices=["scripted", "whisper"], default="scripted")
+    ap.add_argument("--asr", choices=["scripted", "faster-whisper"], default="scripted")
+    ap.add_argument("--whisper-dir", help="sherpa-onnx Whisper export → real ASR via onnxruntime")
+    ap.add_argument("--voice-dir", help="agent voice (Ava VITS dir)")
+    ap.add_argument("--caller-voice-dir", help="caller voice (a different Ava VITS dir)")
+    ap.add_argument("--g2p-dir")
     ap.add_argument("--whisper-model", default="small")
     ap.add_argument("--llm", choices=["rule", "openai"], default="rule")
     ap.add_argument("--base-url", default="http://localhost:8000/v1")

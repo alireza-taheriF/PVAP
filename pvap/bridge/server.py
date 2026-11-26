@@ -88,8 +88,19 @@ def default_factory(args: argparse.Namespace) -> SessionFactory:
     from pvap.backends.llm import OpenAICompatLLM, RuleBasedLLM
     from pvap.backends.tts import AvaTTS, ToneTTS
 
-    tts = AvaTTS() if args.tts == "ava" else ToneTTS()
-    whisper = FasterWhisperASR(model=args.whisper_model) if args.asr == "whisper" else None
+    if args.tts == "tone":
+        tts = ToneTTS()
+    else:
+        tts = AvaTTS(engine="formant" if args.tts == "ava-formant" else "auto",
+                     voice_dir=args.voice_dir, g2p_dir=args.g2p_dir)
+    log.info("TTS: %s", tts.name)
+    whisper = None
+    if args.asr == "whisper-onnx":
+        from pvap.backends.whisper_onnx import WhisperOnnxASR
+
+        whisper = WhisperOnnxASR(args.whisper_dir, threads=args.asr_threads)
+    elif args.asr == "faster-whisper":
+        whisper = FasterWhisperASR(model=args.whisper_model)
     script = [s for s in (args.script or "").split("|") if s]
 
     def make(meta: dict) -> CallSession:
@@ -114,13 +125,17 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="PVAP dialog engine (TCP bridge server)")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=9300)
-    ap.add_argument("--asr", choices=["scripted", "whisper"], default="scripted")
+    ap.add_argument("--asr", choices=["scripted", "whisper-onnx", "faster-whisper"], default="scripted")
+    ap.add_argument("--whisper-dir", help="sherpa-onnx Whisper export (for --asr whisper-onnx)")
+    ap.add_argument("--asr-threads", type=int, default=4)
     ap.add_argument("--script", help="scripted ASR transcripts, '|'-separated")
     ap.add_argument("--whisper-model", default="small")
     ap.add_argument("--llm", choices=["rule", "openai"], default="rule")
     ap.add_argument("--base-url", default="http://localhost:8000/v1")
     ap.add_argument("--model", default="Qwen/Qwen2.5-7B-Instruct")
-    ap.add_argument("--tts", choices=["ava", "tone"], default="ava")
+    ap.add_argument("--tts", choices=["ava", "ava-formant", "tone"], default="ava")
+    ap.add_argument("--voice-dir", help="Ava VITS voice directory (default: Ava's model cache)")
+    ap.add_argument("--g2p-dir", help="Homo-GE2PE directory (default: Ava's model cache)")
     ap.add_argument("--greeting", default=RuleBasedLLM.GREETING)
     ap.add_argument("--reports", help="directory to write per-call report JSON")
     args = ap.parse_args(argv)
