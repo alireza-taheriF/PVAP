@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pvap"
+version = "0.1.0"
+description = "Persian Voice AI Platform — real-time Persian voice agent over phone calls (MVP)."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Alireza Taheri" }]
+dependencies = ["numpy>=1.26", "scipy>=1.11"]
+
+[project.optional-dependencies]
+# Persian TTS via Ava Voice (formant baseline today).
+ava = ["ava-voice @ git+https://github.com/alireza-taheriF/Ava-Voice"]
+# Real speech recognition.
+whisper = ["faster-whisper>=1.0"]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["pvap*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
