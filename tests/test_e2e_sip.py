@@ -81,6 +81,7 @@ def test_sip_call_end_to_end(gateway_bin: Path) -> None:
                     UACStep(voice(800)),
                     UACStep(voice(700), barge_in_after_ms=600),
                 ],
+                min_reply_ms=100,  # tone replies are short
             )
             for _ in range(50):
                 if reports:
@@ -94,6 +95,8 @@ def test_sip_call_end_to_end(gateway_bin: Path) -> None:
         return res, proc.stderr.read().decode()
 
     res, gw_log = asyncio.run(main())
+    if os.environ.get("PVAP_DEBUG"):
+        print([(round(t, 2), k, d) for t, k, d in reports[0][1].events] if reports else gw_log)
     assert res.status == 200, gw_log
     assert res.rtp_packets > 100, gw_log
     agent = np.concatenate(res.received)

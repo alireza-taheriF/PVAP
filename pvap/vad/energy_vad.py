@@ -69,6 +69,11 @@ class EnergyVAD:
         self.last_speech_ms = 0
 
     @property
+    def trailing_silence_ms(self) -> int:
+        """Silence since the last speech frame while an utterance is open (else 0)."""
+        return self._run_silence * self.config.frame_ms if self.in_speech else 0
+
+    @property
     def last_was_click(self) -> bool:
         """True if the utterance that just ended is too short to be speech."""
         return self.last_speech_ms < self.config.min_utterance_ms

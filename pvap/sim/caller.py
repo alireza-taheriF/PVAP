@@ -71,7 +71,10 @@ async def simulated_caller(
             quiet = 0
             seen_agent = not expect_agent
             while (not seen_agent or quiet * session.frame_ms < step.pause_ms) and waited < max_wait_s:
-                if session.agent_active:
+                # wait for the reply itself, not just a backchannel
+                replied = not expect_agent or any(
+                    t.first_speech_t is not None for t in session.report.turns[-1:]) or not session.report.turns
+                if session.agent_active or not replied:
                     seen_agent, quiet = True, 0
                 else:
                     quiet += 1

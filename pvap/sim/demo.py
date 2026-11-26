@@ -48,7 +48,7 @@ def caller_voice(tts: AvaTTS, text: str, shift: bool) -> np.ndarray:
 
 
 async def _run(args: argparse.Namespace) -> dict:
-    tts = AvaTTS(TELEPHONY_RATE, voice_dir=args.voice_dir, g2p_dir=args.g2p_dir)
+    tts = AvaTTS(TELEPHONY_RATE, voice_dir=args.voice_dir, g2p_dir=args.g2p_dir, intensity=args.intensity)
     caller_tts = AvaTTS(TELEPHONY_RATE, voice_dir=args.caller_voice_dir, g2p_dir=args.g2p_dir) \
         if args.caller_voice_dir else tts
     if args.whisper_dir:
@@ -110,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--voice-dir", help="agent voice (Ava VITS dir)")
     ap.add_argument("--caller-voice-dir", help="caller voice (a different Ava VITS dir)")
     ap.add_argument("--g2p-dir")
+    ap.add_argument("--intensity", type=float, default=1.0)
     ap.add_argument("--whisper-model", default="small")
     ap.add_argument("--llm", choices=["rule", "openai"], default="rule")
     ap.add_argument("--base-url", default="http://localhost:8000/v1")
@@ -120,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"turn {t['turn']}: caller={t['user_text']!r}\n"
             f"         agent={t['agent_text']!r}\n"
-            f"         response={t['response_latency_ms']} ms  perceived={t['perceived_latency_ms']} ms"
+            f"         first sound={t['response_latency_ms']} ms ({t['reaction'] or 'breath'})"
+            f"  reply words={t['reply_latency_ms']} ms  after last caller word={t['perceived_latency_ms']} ms"
             f"{'  [interrupted]' if t['interrupted'] else ''}"
         )
     print("barge-in reaction:", data["barge_in_reaction_ms"], "ms")

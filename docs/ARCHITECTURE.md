@@ -28,7 +28,11 @@ sits behind an interface the full design can grow into.
    agent turn, the reply task is cancelled, the LLM stream is told to stop,
    queued audio is cleared, and `CLEAR` flushes the gateway's playout. The
    interrupted turn is marked `interrupted` in the report.
-4. **Every number in a report is measured on the wall clock** at the point the
+4. **React like a person.** When the reply will be slow, a breath and a
+   backchannel play within ~140 ms of the endpoint, and an inhale precedes
+   the reply. Words added while the agent is thinking are merged into the
+   same turn instead of being treated as an interruption.
+5. **Every number in a report is measured on the wall clock** at the point the
    caller would notice it. "First audio" means the first frame actually handed
    to the gateway.
 
@@ -36,8 +40,9 @@ sits behind an interface the full design can grow into.
 
 | Segment | Design target | Measured here |
 | --- | --- | --- |
-| Endpointing (caller stops → turn ends) | 300–600 ms | 600 ms (configurable `VADConfig.end_ms`) |
-| ASR | ≤ 150 ms | 3.9–5.6 s (Whisper-turbo, 2 CPU cores) ← bottleneck |
+| Endpointing (caller stops → turn ends) | 300–600 ms | 500 ms (`TurnTakingConfig.endpoint_ms`), ASR starts speculatively at 200 ms |
+| First agent sound (breath/backchannel) | — | ≈ 140 ms after the endpoint |
+| ASR | ≤ 150 ms | ~1.9 s alone, ~2.7 s under call load (Whisper-turbo, 2 CPU cores) ← bottleneck |
 | LLM first token | ≤ 200 ms | not measured (rule-based) |
 | TTS first chunk + pump | ≤ 150 ms | 100–400 ms (Ava neural voice, RTF ≈ 0.1) |
 | Barge-in reaction | ≤ 200 ms | 100–120 ms |

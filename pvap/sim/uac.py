@@ -73,6 +73,7 @@ async def place_call(
     speech_dbfs: float = -45.0,
     tail_ms: int = 1500,
     max_wait_s: float = 30.0,
+    min_reply_ms: int = 1200,
 ) -> UACResult:
     loop = asyncio.get_running_loop()
     sip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -125,12 +126,13 @@ async def place_call(
     agent_active_ms = 0  # how long agent has been continuously audible
     agent_quiet_ms = 0
     agent_spoke = False
+    agent_heard_ms = 0
     seq, ts, ssrc = random.getrandbits(16), random.getrandbits(32), random.getrandbits(32)
     silence = np.zeros(160, np.int16)
     t_next = loop.time()
 
     async def tick(frame: np.ndarray) -> None:
-        nonlocal t_next, seq, ts, agent_active_ms, agent_quiet_ms, agent_spoke
+        nonlocal t_next, seq, ts, agent_active_ms, agent_quiet_ms, agent_spoke, agent_heard_ms
         t_next += 0.02
         await asyncio.sleep(max(0.0, t_next - loop.time()))
         loud = False
@@ -147,7 +149,9 @@ async def place_call(
         if loud:
             agent_active_ms += 20
             agent_quiet_ms = 0
-            agent_spoke = True
+            agent_heard_ms += 20
+            # a short backchannel ("آهان") is not the reply; wait for real speech
+            agent_spoke = agent_heard_ms >= min_reply_ms
         else:
             agent_quiet_ms += 20
             if agent_quiet_ms >= 100:
@@ -166,13 +170,13 @@ async def place_call(
                 await tick(silence)
                 waited += 20
         else:
-            agent_spoke = False
+            agent_spoke, agent_heard_ms = False, 0
             while not (agent_spoke and agent_quiet_ms >= step.pause_ms) and waited < max_wait_s * 1000:
                 await tick(silence)
                 waited += 20
         for frame in split_frames(step.audio, 160):
             await tick(frame)
-    agent_spoke = False
+    agent_spoke, agent_heard_ms = False, 0
     waited = 0
     while not (agent_spoke and agent_quiet_ms >= 700) and waited < 8000:
         await tick(silence)

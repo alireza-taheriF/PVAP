@@ -20,7 +20,7 @@ import numpy as np
 
 from pvap.audio.pcm import bytes_to_pcm, pcm_to_bytes
 from pvap.bridge.protocol import MsgType, encode, read_message
-from pvap.dialog.session import CallReport, CallSession
+from pvap.dialog.session import CallReport, CallSession, TurnTakingConfig
 
 __all__ = ["serve", "handle_call"]
 
@@ -92,8 +92,11 @@ def default_factory(args: argparse.Namespace) -> SessionFactory:
         tts = ToneTTS()
     else:
         tts = AvaTTS(engine="formant" if args.tts == "ava-formant" else "auto",
-                     voice_dir=args.voice_dir, g2p_dir=args.g2p_dir)
+                     voice_dir=args.voice_dir, g2p_dir=args.g2p_dir,
+                     expressive=not args.plain_voice, intensity=args.intensity)
     log.info("TTS: %s", tts.name)
+    if hasattr(tts, "warm"):
+        tts.warm(args.greeting)
     whisper = None
     if args.asr == "whisper-onnx":
         from pvap.backends.whisper_onnx import WhisperOnnxASR
@@ -110,7 +113,8 @@ def default_factory(args: argparse.Namespace) -> SessionFactory:
             if args.llm == "openai"
             else RuleBasedLLM()
         )
-        return CallSession(asr, llm, tts, greeting=args.greeting)
+        tt = TurnTakingConfig(endpoint_ms=args.endpoint_ms, react=not args.no_react)
+        return CallSession(asr, llm, tts, greeting=args.greeting, turn_taking=tt)
 
     return make
 
@@ -136,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tts", choices=["ava", "ava-formant", "tone"], default="ava")
     ap.add_argument("--voice-dir", help="Ava VITS voice directory (default: Ava's model cache)")
     ap.add_argument("--g2p-dir", help="Homo-GE2PE directory (default: Ava's model cache)")
+    ap.add_argument("--intensity", type=float, default=1.0, help="emotional expressiveness (0 = flat, 1.5 = theatrical)")
+    ap.add_argument("--plain-voice", action="store_true", help="no emotion/breathing (neural voice only)")
+    ap.add_argument("--endpoint-ms", type=int, default=500, help="silence that ends the caller's turn")
+    ap.add_argument("--no-react", action="store_true", help="no backchannels while thinking")
     ap.add_argument("--greeting", default=RuleBasedLLM.GREETING)
     ap.add_argument("--reports", help="directory to write per-call report JSON")
     args = ap.parse_args(argv)
@@ -144,7 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     def on_report(meta: dict, report: CallReport) -> None:
         data = report.to_dict()
         for t in data["turns"]:
-            log.info("turn %s user=%r agent=%r latency=%s ms", t["turn"], t["user_text"], t["agent_text"], t["response_latency_ms"])
+            log.info("turn %s user=%r agent=%r first_sound=%s ms reply=%s ms reaction=%s", t["turn"], t["user_text"],
+                     t["agent_text"], t["response_latency_ms"], t["reply_latency_ms"], t["reaction"] or "-")
         if args.reports:
             os.makedirs(args.reports, exist_ok=True)
             path = os.path.join(args.reports, f"{meta.get('call_id', 'call')}.json")
